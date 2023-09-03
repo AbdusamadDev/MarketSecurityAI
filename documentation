@@ -1,0 +1,31 @@
+sudo apt-get purge nvidia*
+sudo apt-get purge cuda*
+sudo apt-get autoremove
+sudo apt-get autoclean
+
+sudo add-apt-repository ppa:graphics-drivers/ppa
+sudo apt-get update
+sudo apt-get install nvidia-driver-535
+
+wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb
+sudo dpkg -i cuda-keyring_1.1-1_all.deb
+sudo apt-get update
+sudo apt-get -y install cuda
+
+echo 'export PATH=/usr/local/cuda/bin:$PATH' >> ~/.bashrc
+echo 'export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH' >> ~/.bashrc
+source ~/.bashrc
+
+nvidia-smi
+nvcc --version
+
+
+
+
+# DEBUGGING
+find /usr/local -name nvcc
+Result: /usr/local/cuda-12.2/bin/nvcc
+
+
+echo 'export PATH=/usr/local/cuda-12.2/bin:$PATH' >> ~/.bashrc
+source ~/.bashrc
