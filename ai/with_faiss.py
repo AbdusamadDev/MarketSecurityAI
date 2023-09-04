@@ -58,7 +58,7 @@ class FaceRecognizer:
                 cropped_face = frame[bbox[1] : bbox[3], bbox[0] : bbox[2]]
 
                 # Save the cropped rectangle
-                output_path = os.path.join("media", f"{time.time()}.jpg")
+                output_path = os.path.join("cutted", f"{time.time()}.jpg")
                 cv2.imwrite(output_path, cropped_face)
 
                 embedding = np.array(face.embedding)
@@ -80,7 +80,7 @@ if __name__ == "__main__":
     recognizer = FaceRecognizer(root_dir=root_dir)
 
     start_time = time.time()  # Start the timer
-    image_path = "pose03.jpg"
+    image_path = "media/blur.jpg"
     frame = cv2.imread(image_path)
 
     results = list(recognizer.recognize_faces(frame))
