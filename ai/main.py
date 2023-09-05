@@ -10,6 +10,7 @@ from flask import Flask, render_template
 from threading import Thread
 from flask_socketio import SocketIO, emit
 from flask_cors import CORS, cross_origin
+import time
 
 from models import camera_urls
 
@@ -17,6 +18,7 @@ from models import camera_urls
 app = Flask(__name__, template_folder="templates")
 socketio = SocketIO(app)
 CORS(app)
+print("Script started.")
 
 
 class FaceDetector:
@@ -31,15 +33,11 @@ class FaceDetector:
             print(f"Ошибка при инициализации моделей: {e}")
             raise
 
-        try:
-            self.index, self.known_face_names = self.load_face_encodings(root_dir)
-        except Exception as e:
-            print(f"Ошибка при загрузке кодировок лиц: {e}")
-            raise
-
+        self.index, self.known_face_names = self.load_face_encodings(root_dir)
         self.emotion = ""
         self.user_id = ""
         self.video_captures = []
+        print("FaceDetector initialized successfully.")
 
     def add_camera(self, urls):
         for url in urls:
@@ -118,18 +116,60 @@ class FaceDetector:
                 "No face encodings loaded. Please ensure valid images are present."
             )
 
-        index = faiss.IndexFlatL2(known_face_encodings.shape[1])
-        index.add(known_face_encodings)
+        self.embeddings = np.array(known_face_encodings)
+        self.names = known_face_names
 
-        return index, known_face_names
+        index = faiss.IndexFlatL2(self.embeddings.shape[1])
+        index.add(self.embeddings)
+
+        return index, self.names
+
+    def recognize_faces(self, frame):
+        results = []
+
+        if not os.path.exists("cutted"):
+            os.makedirs("cutted")
+
+        faces = self.face_model.get(frame)
+        for face in faces:
+            bbox = face.bbox.astype(int)
+            output_path = os.path.join("cutted", f"{time.time()}.jpg")
+            cv2.imwrite(output_path, frame[bbox[1] : bbox[3], bbox[0] : bbox[2]])
+            embedding_new = np.array(face.embedding)
+
+            # Calculate Euclidean distances with all known face embeddings
+            distances = np.linalg.norm(self.embeddings - embedding_new, axis=1)
+
+            # Identify the face with the shortest Euclidean distance
+            best_match_index = np.argmin(distances)
+            min_distance = distances[best_match_index]
+
+            print(f"Minimum distance for face: {min_distance}")  # <-- New log
+
+            # Threshold (can be adjusted based on your dataset and requirements)
+            threshold = 0.6
+            if min_distance < threshold:
+                identified_name = self.names[best_match_index]
+                results.append((identified_name, min_distance, output_path))
+                print(
+                    f"Identified face as: {identified_name} with distance: {min_distance}"
+                )  # <-- New log
+            else:
+                print(
+                    f"Face not recognized. Closest match was {self.names[best_match_index]} with distance: {min_distance}"
+                )  # <-- New log
+
+        return results
 
     def detect_and_display_faces(self, video_stream, camera_url):
-        names = []
-        screenshot_interval = 0.3
-        last_screenshot_time = datetime.datetime.now()
+        print("Starting face detection for camera:", camera_url)
+
+        # names = []
+        # screenshot_interval = 0.3
+        # last_screenshot_time = datetime.datetime.now()
 
         while True:
-            current_time = datetime.datetime.now()
+            # current_time = datetime.datetime.now()
 
             try:
                 frame = video_stream.read()
@@ -148,41 +188,20 @@ class FaceDetector:
             except Exception as e:
                 print(f"Error in face recognition: {e}")
                 continue
+            print("Number of faces detected:", len(faces))
 
             if faces:
-                for face in faces:
-                    box = face.bbox.astype(int)
-                    face_image = frame[box[1] : box[3], box[0] : box[2]]
-                    if face_image.size == 0:
-                        continue
-                    face_image = cv2.resize(face_image, (640, 480))
-                    face_image = face_image / 255.0
-                    face_image = (
-                        torch.tensor(face_image.transpose((2, 0, 1)))
-                        .float()
-                        .to(self.device)
-                        .unsqueeze(0)
-                    )
-                    embedding = face.embedding
-
-                    D, I = self.index.search(embedding.reshape(1, -1), 1)
-                    if D[0, 0] < 600:
-                        name = self.known_face_names[I[0, 0]]
-                        names.append(name)
-                        yield {
-                            "user": name,
-                            "datetime": str(datetime.datetime.now()),
-                            "url": camera_url,
-                        }
-            if (
-                current_time - last_screenshot_time
-            ).total_seconds() > screenshot_interval:
-                screenshot_filename = os.path.join(
-                    "./media",
-                    f"{current_time.strftime('%Y_%m_%d_%H_%M_%S')}.jpg",
-                )
-                cv2.imwrite(screenshot_filename, frame)
-                last_screenshot_time = current_time
+                recognized_faces = self.recognize_faces(frame)
+                if not recognized_faces:
+                    print("No recognized faces in this frame.")
+                for name, similarity, output in recognized_faces:
+                    yield {
+                        "user": name,
+                        "similarity": similarity,
+                        "image_path": output,
+                        "datetime": str(datetime.datetime.now()),
+                        "url": camera_url,
+                    }
 
 
 class BackgroundCameraTask(Thread):
@@ -192,6 +211,8 @@ class BackgroundCameraTask(Thread):
         super().__init__()
 
     def run(self):
+        print("Starting background camera task...")
+
         for result in self.detector.detect_and_display_faces(**self.video_stream):
             print(result)
             socketio.emit("response_data", result)
@@ -203,7 +224,7 @@ def get():
     return render_template("index.html")
 
 
-@app.route("/hello")    
+@app.route("/hello")
 @cross_origin()
 def hello():
     return "asdkjlhasdfljkhkjlasdf"
@@ -225,8 +246,3 @@ for video_capture in detector.video_captures:
 
 if __name__ == "__main__":
     socketio.run(app, host="0.0.0.0", port=11223)
-
-
-# rtsp://admin:Z12345678r@192.168.0.201/Streaming/channels/2/
-# 40.99695646
-# 71.64007184

@@ -1,7 +1,5 @@
-import onnx
-import os
+import mxnet as mx
+print(mx.context.num_gpus())
 
-
-# Load the ONNX model
-onnx_model = onnx.load(os.path.join("resources", "single_relu.onnx"))
-print(onnx_model)
+import faiss
+print(faiss.has_gpu_support)
