@@ -4,31 +4,60 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Face Detector</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <title>Stream Display</title>
+    <style>
+        #results {
+            border: 1px solid black;
+            padding: 10px;
+            width: 300px;
+            height: 150px;
+            overflow-y: scroll;
+        }
+    </style>
 </head>
 
 <body>
-    <h1>Detected Faces</h1>
+    <h1>Streaming Data</h1>
     <div id="results">
-        <!-- Detected faces will appear here -->
+        <!-- Streamed data will appear here -->
     </div>
     <script>
-        // Connect to the WebSocket server
-        const socket = io.connect('http://192.168.0.108:11223');
+        const url = 'http://127.0.0.1:11223/stream';
+        console.log("Application started")
+        fetch(url).then(response => {
+            const reader = response.body.getReader();
+            const stream = new ReadableStream({
+                start(controller) {
+                    function push() {
+                        reader.read().then(({ done, value }) => {
+                            if (done) {
+                                controller.close();
+                                return;
+                            }
+                            console.log("Application is conitnuing")
+                            // Convert the Uint8Array to a string
+                            const string = new TextDecoder().decode(value);
+                            const lines = string.split('\n');
 
-        // Listen for "response_data" event
-        socket.on('response_data', function (data) {
-            // Process and display data
-            const resultDiv = document.createElement('div');
-            console.log(data)
-            resultDiv.innerHTML = `
-                <strong>User:</strong> ${data.user} <br>
-                <strong>DateTime:</strong> ${data.datetime} <br>
-                <strong>Camera URL:</strong> ${data.url} <hr>
-            `;
+                            // Handle each line of data here...
+                            for (const line of lines) {
+                                if (line) {
+                                    const data = JSON.parse(line);
+                                    console.log(data);
+                                    // ... append the data to the DOM or do something else
+                                }
+                                console.log("Something")
+                            }
 
-            document.getElementById('results').appendChild(resultDiv);
+                            push();
+                        });
+                    }
+
+                    push();
+                }
+            });
+
+            return new Response(stream, { headers: { "Content-Type": "text/plain" } });
         });
 
     </script>
