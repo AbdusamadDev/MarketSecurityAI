@@ -4,8 +4,8 @@ import torch
 import insightface
 import faiss
 import os
-from collections import Counter
 from imutils.video import VideoStream
+import asyncio
 
 import time
 
@@ -16,27 +16,20 @@ class FaceDetector:
         self.face_model = self._initialize_face_model()
         self.index, self.known_face_names = self.load_face_encodings(root_dir)
         self.video_captures = []
-        self.face_last_seen = None  # To keep track of when the face was last seen
 
     def _initialize_face_model(self):
-        try:
-            model = insightface.app.FaceAnalysis()
-            ctx_id = 0
-            model.prepare(ctx_id=ctx_id)
-            return model
-        except Exception as e:
-            print(f"Error initializing model: {e}")
-            raise
+        model = insightface.app.FaceAnalysis()
+        ctx_id = 0
+        model.prepare(ctx_id=ctx_id)
+        return model
 
-    def add_camera(self, urls):
-        for url in urls:
-            try:
-                video_stream = VideoStream(url).start()
-                self.video_captures.append(
-                    {"video_stream": video_stream, "camera_url": url}
-                )
-            except Exception as e:
-                print(f"Error opening video capture for {url}: {e}")
+    async def add_camera(self, urls):
+        tasks = [self._add_single_camera(url) for url in urls]
+        await asyncio.gather(*tasks)
+
+    async def _add_single_camera(self, url):
+        video_stream = VideoStream(url).start()
+        self.video_captures.append({"video_stream": video_stream, "camera_url": url})
 
     def load_face_encodings(self, root_dir):
         user_embeddings = {}  # Dictionary to store embeddings for each user
@@ -87,7 +80,7 @@ class FaceDetector:
         index.add(known_face_encodings)
         return index, known_face_names
 
-    def recognize_faces(self, frame, camera_url):
+    def _sync_recognize_faces(self, frame, camera_url):
         results = []
         if not os.path.exists("cutted"):
             os.makedirs("cutted")
@@ -102,9 +95,7 @@ class FaceDetector:
             min_distance = distances[best_match_index]
             threshold = 200
             if min_distance < threshold:
-                identified_name = self.names[
-                    best_match_index
-                ]  # Use the stored user names
+                identified_name = self.names[best_match_index]
                 results.append(
                     {
                         "user": identified_name,
@@ -118,16 +109,32 @@ class FaceDetector:
                 )
         return results
 
-    def recognition(self):
-        for video_capture in self.video_captures:
-            frame = video_capture["video_stream"].read()
-            if frame is None:
-                continue
+    async def _async_recognize_faces(self, frame, camera_url):
+        loop = asyncio.get_event_loop()
+        results = await loop.run_in_executor(
+            None, self._sync_recognize_faces, frame, camera_url
+        )
+        return results
 
-            faces = self.face_model.get(frame)
-            if faces:
-                recognized_faces = self.recognize_faces(
-                    frame, video_capture["camera_url"]
-                )  # Pass the camera URL
-                for face in recognized_faces:
-                    yield face
+    async def _process_single_camera(self, video_capture):
+        frame = video_capture["video_stream"].read()
+        if frame is not None:
+            recognized_faces = await self._async_recognize_faces(
+                frame, video_capture["camera_url"]
+            )
+            return recognized_faces
+        return []
+
+    async def async_recognition(self):
+        while True:
+            tasks = [
+                self._process_single_camera(video_capture)
+                for video_capture in self.video_captures
+            ]
+            results = await asyncio.gather(*tasks)
+
+            all_faces = []
+            for face_list in results:
+                all_faces.extend(face_list)
+            for face in all_faces:
+                yield face

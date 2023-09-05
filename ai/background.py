@@ -1,23 +1,32 @@
 from threading import Thread, Event
+import asyncio
+import os
 
-from models import camera_urls
 from recognition import FaceDetector
+from models import camera_urls
 
 
 class BackgroundCameraTask(Thread):
     def __init__(self, results_queue):
         self.results_queue = results_queue
-        self.root_dir = "/home/ocean/Projects/MarketPlaceSecurityApp/media"
-        self.detector = FaceDetector(root_dir=self.root_dir)
-        self.detector.add_camera(camera_urls)
+        self.root_dir = os.path.join(
+            *os.path.abspath(__file__).split(os.sep)[:-2], "media"
+        )
+        self.detector = FaceDetector(root_dir="/" + str(self.root_dir))
+        asyncio.run(self.detector.add_camera(camera_urls))
         self.stop_event = Event()
         super().__init__()
 
     def run(self):
-        while not self.stop_event.is_set():
-            for result in self.detector.recognition():
-                print("Result in background: ", result)
-                self.results_queue.put(result)
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(self.async_run())
+        loop.close()
+
+    async def async_run(self):
+        async for result in self.detector.async_recognition():
+            print("Result in background: ", result)
+            self.results_queue.put(result)
 
     def stop(self):
         self.stop_event.set()
