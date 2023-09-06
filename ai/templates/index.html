@@ -22,7 +22,7 @@
         <!-- Streamed data will appear here -->
     </div>
     <script>
-        const url = 'http://127.0.0.1:11223/stream';
+        const url = 'http://192.168.0.182:11223/stream';
         console.log("Application started")
         fetch(url).then(response => {
             const reader = response.body.getReader();
@@ -39,7 +39,6 @@
                             const string = new TextDecoder().decode(value);
                             const lines = string.split('\n');
 
-                            // Handle each line of data here...
                             for (const line of lines) {
                                 if (line) {
                                     const data = JSON.parse(line);

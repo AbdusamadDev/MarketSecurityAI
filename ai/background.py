@@ -25,7 +25,6 @@ class BackgroundCameraTask(Thread):
 
     async def async_run(self):
         async for result in self.detector.async_recognition():
-            print("Result in background: ", result)
             self.results_queue.put(result)
 
     def stop(self):

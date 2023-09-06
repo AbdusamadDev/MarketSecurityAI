@@ -1,8 +1,8 @@
-from flask import Flask
 from flask_cors import CORS, cross_origin
 from flask import Response
-import json
+from flask import Flask
 import queue
+import json
 
 from background import BackgroundCameraTask
 

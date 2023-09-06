@@ -88,13 +88,13 @@ class FaceDetector:
         for face in faces:
             bbox = face.bbox.astype(int)
             output_path = os.path.join("cutted", f"{time.time()}.jpg")
-            cv2.imwrite(output_path, frame[bbox[1] : bbox[3], bbox[0] : bbox[2]])
             embedding_new = np.array(face.embedding)
             distances = np.linalg.norm(self.embeddings - embedding_new, axis=1)
             best_match_index = np.argmin(distances)
             min_distance = distances[best_match_index]
-            threshold = 200
-            if min_distance < threshold:
+            threshold = 4
+            similarity_percentage = (1 / (1 + min_distance)) * 100
+            if similarity_percentage > threshold:
                 identified_name = self.names[best_match_index]
                 results.append(
                     {
@@ -102,10 +102,11 @@ class FaceDetector:
                         "distance": min_distance,
                         "image_path": output_path,
                         "camera_url": camera_url,
+                        "similarity": similarity_percentage
                     }
                 )
                 print(
-                    f"Identified face as: {identified_name} with distance: {min_distance}"
+                    f"Identified face as: {identified_name} with distance: {min_distance} similarity: {similarity_percentage}"
                 )
         return results
 
