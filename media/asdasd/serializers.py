@@ -15,17 +15,14 @@ class CameraSerializer(serializers.ModelSerializer):
         return value
 
 
-class CriminalsSerializer(serializers.Serializer):
-    folder = serializers.FileField(required=True)
-    first_name = serializers.CharField(required=True)
-    last_name = serializers.CharField(required=True)
-    age = serializers.IntegerField(required=True)
-    description = serializers.CharField(required=True)
+class CriminalsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Criminals
+        fields = ["first_name", "last_name", "age", "description"]
 
     def validate(self, attrs):
-        first_name = is_valid_character(attrs.get("first_name"))
-        last_name = is_valid_character(attrs.get("last_name"))
-        print(first_name, last_name)
+        first_name = is_valid_character(attrs.get("first_name"), "first_name")
+        last_name = is_valid_character(attrs.get("last_name"), "last_name")
         if first_name and last_name:
             return attrs
         else:
