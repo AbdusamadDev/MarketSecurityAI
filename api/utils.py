@@ -5,6 +5,8 @@ import zipfile
 import os
 import shutil
 
+ALLOWED_IMAGE_FORMATS = ["png", "jpg", "jpeg"]
+
 
 def characters() -> list:
     letters = [chr(i) for i in list(range(97, 123)) + list(range(65, 91))]
@@ -31,11 +33,24 @@ def extract_zip(save_as_name, zip_path, extract_to):
     with zipfile.ZipFile(zip_path, "r") as zip_ref:
         folder_name = str(zip_path).split("/")[-1].split(".")[0] + "/"
         if not os.path.exists(extract_to + save_as_name):
-            zip_ref.extractall(extract_to)
+            for member in zip_ref.infolist()[1:]:
+                if member.filename.split(".")[-1] in ALLOWED_IMAGE_FORMATS:
+                    zip_ref.extract(member=member, path=extract_to)
             os.rename(extract_to + folder_name, extract_to + save_as_name)
             return True
         else:
             return False
+
+
+def move_extracted(zip_path, move_to):
+    with zipfile.ZipFile(zip_path, "r") as zip_ref:
+        for member in zip_ref.infolist()[1:]:
+            if member.filename.split(".")[-1] in ALLOWED_IMAGE_FORMATS:
+                member.filename = member.filename.split("/")[-1]
+                zip_ref.extract(member=member, path=move_to)
+            else:
+                return "Zip contains folder or incorrect files", False
+    return "Criminal details updated successfully!", True
 
 
 def remove_directory(folder_path):
@@ -46,8 +61,9 @@ def remove_directory(folder_path):
 
 
 if __name__ == "__main__":
-    extract_zip(
-        save_as_name="Another",
-        zip_path="file.zip",
-        extract_to="../media/",
+    print(
+        move_extracted(
+            zip_path="Abdusamad.zip",
+            move_to="../media/Abdusamad/",
+        )
     )

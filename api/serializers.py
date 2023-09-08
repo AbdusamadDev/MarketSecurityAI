@@ -4,6 +4,8 @@ from django.core.exceptions import ValidationError
 from api.models import Camera, Criminals
 from api.utils import is_valid_character
 
+ERROR_MESSAGE = "Please provide valid characters: leters, numbers and underscore only"
+
 
 class CameraSerializer(serializers.ModelSerializer):
     class Meta:
@@ -11,22 +13,27 @@ class CameraSerializer(serializers.ModelSerializer):
         fields = ["name", "url", "longitude", "latitude"]
 
     def validate_name(self, value):
-        is_valid_character(value, "name")
-        return value
+        if is_valid_character(value):
+            return value
+
+        raise ValidationError(ERROR_MESSAGE)
 
 
-class CriminalsSerializer(serializers.Serializer):
-    folder = serializers.FileField(required=True)
-    first_name = serializers.CharField(required=True)
-    last_name = serializers.CharField(required=True)
-    age = serializers.IntegerField(required=True)
-    description = serializers.CharField(required=True)
+class CriminalsPOSTAndPUTSerializer(serializers.Serializer):
+    folder = serializers.FileField()
+    first_name = serializers.CharField()
+    last_name = serializers.CharField()
+    age = serializers.IntegerField()
+    description = serializers.CharField()
 
-    def validate(self, attrs):
-        first_name = is_valid_character(attrs.get("first_name"))
-        last_name = is_valid_character(attrs.get("last_name"))
-        print(first_name, last_name)
-        if first_name and last_name:
-            return attrs
-        else:
-            raise ValidationError("Validation failed for field: first_name, last_name")
+    def validate_first_name(self, value):
+        if is_valid_character(value):   
+            return value
+
+        raise ValidationError(ERROR_MESSAGE)
+
+
+class CriminalsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Criminals
+        fields = "__all__"

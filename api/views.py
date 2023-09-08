@@ -6,8 +6,12 @@ from rest_framework import status
 from api.models import Camera, Criminals
 from api.filters import CameraFilter, CriminalsFilter
 from api.pagination import CameraPagination, CriminalsPagination
-from api.serializers import CameraSerializer, CriminalsSerializer
-from api.utils import extract_zip, remove_directory
+from api.utils import extract_zip, remove_directory, move_extracted
+from api.serializers import (
+    CameraSerializer,
+    CriminalsSerializer,
+    CriminalsPOSTAndPUTSerializer,
+)
 
 import os
 
@@ -29,15 +33,8 @@ class CriminalsAPIView(ModelViewSet):
     filterset_class = CriminalsFilter
     pagination_class = CriminalsPagination
 
-    def get_queryset(self):
-        query = self.model.objects.get(pk=self.kwargs.get("pk"))
-        if query:
-            return query
-
-        return None
-
     def create(self, request, *args, **kwargs):
-        serializer = self.serializer_class(data=request.data)
+        serializer = CriminalsPOSTAndPUTSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         folder = serializer.validated_data["folder"]
         extractor = extract_zip(
@@ -57,21 +54,42 @@ class CriminalsAPIView(ModelViewSet):
         del serializer["folder"]
         model = self.model(**serializer)
         model.save()
-        return Response(data={"msg": "Success"}, status=status.HTTP_201_CREATED)
+        return Response(
+            data={"msg": "Criminal details added to database"},
+            status=status.HTTP_201_CREATED,
+        )
+
+    def update(self, request, *args, **kwargs):
+        serializer = CriminalsPOSTAndPUTSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        is_updated = move_extracted(
+            zip_path=serializer.validated_data.get("folder"),
+            move_to="media/" + serializer.validated_data["first_name"] + "/",
+        )
+        if is_updated[-1]:
+            serializer_class = self.serializer_class(data=request.data)
+            serializer_class.is_valid(raise_exception=True)
+            self.perform_update(serializer_class)
+            return Response(
+                data={"msg": is_updated[0]},
+                status=status.HTTP_200_OK,
+            )
+        else:
+            return Response(
+                data={"msg": is_updated[0]}, status=status.HTTP_400_BAD_REQUEST
+            )
 
     def destroy(self, request, *args, **kwargs):
-        wanted = self.get_queryset()
+        wanted = self.model.objects.get(pk=self.kwargs.get("pk"))
         if wanted is not None:
             path = settings.MEDIA_ROOT + "media/" + wanted.first_name
             if os.path.exists(path):
                 remove_directory(path)
-                print("asdasda")
                 self.perform_destroy(wanted)
                 return Response(status=status.HTTP_204_NO_CONTENT)
             else:
-                print(path)
                 return Response(
-                    data={"msg": "Some kind of misunderstanding occured on system"},
+                    data={"msg": "Error occured"},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
         else:

@@ -9,7 +9,7 @@ urlpatterns = [
         CameraAPIView.as_view({"get": "list", "post": "create"}),
     ),
     path(
-        "camera/<int:pk>/",
+        "camera/<str:name>/",
         CameraAPIView.as_view(
             {"get": "retrieve", "put": "update", "delete": "destroy"}
         ),
@@ -25,4 +25,3 @@ urlpatterns = [
         ),
     ),
 ]
-# urlpatterns += 
