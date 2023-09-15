@@ -88,26 +88,35 @@ class FaceDetector:
         for face in faces:
             bbox = face.bbox.astype(int)
             output_path = os.path.join("cutted", f"{time.time()}.jpg")
-            embedding_new = np.array(face.embedding)
-            distances = np.linalg.norm(self.embeddings - embedding_new, axis=1)
-            best_match_index = np.argmin(distances)
-            min_distance = distances[best_match_index]
+            embedding_new = np.array(face.embedding).reshape(
+                1, -1
+            )  # Reshape for faiss search
+
+            # Use faiss to search for the closest embeddings
+            D, I = self.index.search(embedding_new, 1)
+            min_distance = D[0, 0]
+            best_match_index = I[0, 0]
+
+            # Adjusted similarity percentage calculation
+            similarity_percentage = (
+                100 - min_distance
+            )  # Example adjustment, you might need to change this based on your requirements
+
             threshold = 4
-            similarity_percentage = (1 / (1 + min_distance)) * 100
-            if similarity_percentage > threshold:
-                identified_name = self.names[best_match_index]
-                results.append(
-                    {
-                        "user": identified_name,
-                        "distance": min_distance,
-                        "image_path": output_path,
-                        "camera_url": camera_url,
-                        "similarity": similarity_percentage
-                    }
-                )
-                print(
-                    f"Identified face as: {identified_name} with distance: {min_distance} similarity: {similarity_percentage}"
-                )
+            # if similarity_percentage > threshold:  # Uncomment this if you want to use the threshold
+            identified_name = self.names[best_match_index]
+            results.append(
+                {
+                    "user": identified_name,
+                    "distance": min_distance,
+                    "image_path": output_path,
+                    "camera_url": camera_url,
+                    "similarity": similarity_percentage,
+                }
+            )
+            print(
+                f"Identified face as: {identified_name} with distance: {min_distance} similarity: {similarity_percentage:.2f}%"
+            )
         return results
 
     async def _async_recognize_faces(self, frame, camera_url):

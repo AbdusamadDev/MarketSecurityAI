@@ -18,12 +18,12 @@ def stream():
     def generate():
         while True:
             result = results_queue.get()
+            print(result)
             yield json.dumps({"data": str(result) + "\n"})
 
     return Response(generate(), mimetype="text/plain")
 
 
 camera_thread = BackgroundCameraTask(results_queue=results_queue)
-camera_thread.start()
+# camera_thread.start()
 app.run(host="0.0.0.0", port=11223)
-camera_thread.stop()
